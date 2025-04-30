@@ -1,0 +1,726 @@
+---
+jupyter:
+  colab:
+    toc_visible: true
+  kernelspec:
+    display_name: Python 3
+    name: python3
+  language_info:
+    name: python
+  nbformat: 4
+  nbformat_minor: 0
+---
+
+::: {.cell .markdown id="cypCqAFZsz0h"}
+# Analisis de la medicina Brasilera
+:::
+
+::: {.cell .markdown id="QjbARvTuS2Ve"}
+## Preguntas y suposiciones iniciales
+
+**Preguntas:**
+
+-   ¿Cual es la municipalidad a la que NO debería ir si quiero vivir?
+-   ¿En qué municipalidad tengo más probabilidades de sobrevivir?
+-   ¿Que sea mortal es por causa de la saturación en hospitalizaciones?
+
+**Suposiciones:**
+
+-   Supongo que es por la saturación del atendidos que no tienen tiempo
+    para ser atendidos por lo que mueren por falta de atención.
+:::
+
+::: {.cell .markdown id="-dP5SpLGS8WZ"}
+## Dataset
+:::
+
+::: {.cell .markdown id="cStJkvOLtbT1"}
+### Introducción al dataset
+
+El dataset son recopilaciones de varios csv del ministerio de salud de
+brazil ([dataset del
+ministerio](http://tabnet.datasus.gov.br/cgi/tabcgi.exe?sih/cnv/sxrj.de)).
+:::
+
+::: {.cell .markdown id="KMr38uYst8lx"}
+### Carga de tablas
+
+Como son varios csv\'s en varios filtros, estaremos descargando y usando
+los de nuestro interés, columnas tales como Municipio, Muertes, Taza de
+mortalidad, etc.
+:::
+
+::: {.cell .code execution_count="551" id="4q8ZapXjSuil"}
+``` python
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+
+
+
+# Muncipio - Muertes
+MM = pd.read_csv("/content/Municipio-Muertes.csv", encoding='latin1', sep=';', skiprows=3)
+
+# Municipio - Taza de mortalidad
+MT = pd.read_csv("/content/Municipio-Taza_de_mortalidad.csv", encoding='latin1', sep=';', skiprows=3)
+
+# Municipio - Internados
+MI = pd.read_csv("/content/Municipio-Internados.csv", encoding='latin1', sep=';', skiprows=3)
+```
+:::
+
+::: {.cell .markdown id="G9GtBmmAvKKA"}
+### Union de tablas
+
+Unimos las 3 tablas usando \"Município\" como clave.
+:::
+
+::: {.cell .code execution_count="552" colab="{\"base_uri\":\"https://localhost:8080/\",\"height\":423}" collapsed="true" id="Ri7A1BGgCrvP" outputId="11eeb90b-4537-4268-ea29-e2fd8ba5b147"}
+``` python
+df_merged = MM.merge(MT, on="Município", how="inner").merge(MI, on="Município", how="inner")
+df_merged
+```
+
+::: {.output .execute_result execution_count="552"}
+``` json
+{"summary":"{\n  \"name\": \"df_merged\",\n  \"rows\": 69,\n  \"fields\": [\n    {\n      \"column\": \"Munic\\u00edpio\",\n      \"properties\": {\n        \"dtype\": \"string\",\n        \"num_unique_values\": 69,\n        \"samples\": [\n          \"330230 Laje do Muria\\u00e9\",\n          \"330010 Angra dos Reis\",\n          \"330475 S\\u00e3o Francisco de Itabapoana\"\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"\\u00d3bitos\",\n      \"properties\": {\n        \"dtype\": \"number\",\n        \"std\": 606.2204188039722,\n        \"min\": 1.0,\n        \"max\": 4473.0,\n        \"num_unique_values\": 41,\n        \"samples\": [\n          309.0,\n          4.0,\n          45.0\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"Taxa_mortalidade\",\n      \"properties\": {\n        \"dtype\": \"string\",\n        \"num_unique_values\": 60,\n        \"samples\": [\n          \"5,94\",\n          \"11,80\",\n          \"8,86\"\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"Interna\\u00e7\\u00f5es\",\n      \"properties\": {\n        \"dtype\": \"number\",\n        \"std\": 9027.401019730885,\n        \"min\": 20.0,\n        \"max\": 66186.0,\n        \"num_unique_values\": 58,\n        \"samples\": [\n          808.0,\n          322.0,\n          346.0\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    }\n  ]\n}","type":"dataframe","variable_name":"df_merged"}
+```
+:::
+:::
+
+::: {.cell .markdown id="jSx57XEzvbBX"}
+#### Handling missing data
+
+Como se pudo observar hay filas que tienen puro NaN por lo que los
+eliminamos.
+:::
+
+::: {.cell .code execution_count="553" colab="{\"base_uri\":\"https://localhost:8080/\",\"height\":300}" collapsed="true" id="BIiZ9WjsFzf7" outputId="ae9ef1d2-0ce9-4275-8787-95df32744160"}
+``` python
+# Del 61 en adelante no hay información
+df_merged.iloc[61:df_merged.shape[0]]
+```
+
+::: {.output .execute_result execution_count="553"}
+``` json
+{"repr_error":"0","type":"dataframe"}
+```
+:::
+:::
+
+::: {.cell .code execution_count="554" id="1BHcAWcFHWXw"}
+``` python
+# Eliminar esas filas con nada de info
+df_merged = df_merged.dropna(subset=df_merged.columns[1:], how='all')
+df_merged.reset_index(drop=True, inplace=True)
+```
+:::
+
+::: {.cell .code execution_count="555" colab="{\"base_uri\":\"https://localhost:8080/\",\"height\":423}" id="wCgUNQAXHRN5" outputId="080207fa-0d63-45ac-e706-f6b8f8e77dea"}
+``` python
+df_merged
+```
+
+::: {.output .execute_result execution_count="555"}
+``` json
+{"summary":"{\n  \"name\": \"df_merged\",\n  \"rows\": 61,\n  \"fields\": [\n    {\n      \"column\": \"Munic\\u00edpio\",\n      \"properties\": {\n        \"dtype\": \"string\",\n        \"num_unique_values\": 61,\n        \"samples\": [\n          \"330010 Angra dos Reis\",\n          \"330030 Barra do Pira\\u00ed\",\n          \"330480 S\\u00e3o Fid\\u00e9lis\"\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"\\u00d3bitos\",\n      \"properties\": {\n        \"dtype\": \"number\",\n        \"std\": 606.2204188039722,\n        \"min\": 1.0,\n        \"max\": 4473.0,\n        \"num_unique_values\": 41,\n        \"samples\": [\n          309.0,\n          4.0,\n          45.0\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"Taxa_mortalidade\",\n      \"properties\": {\n        \"dtype\": \"string\",\n        \"num_unique_values\": 60,\n        \"samples\": [\n          \"5,94\",\n          \"11,80\",\n          \"8,86\"\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"Interna\\u00e7\\u00f5es\",\n      \"properties\": {\n        \"dtype\": \"number\",\n        \"std\": 9027.401019730885,\n        \"min\": 20.0,\n        \"max\": 66186.0,\n        \"num_unique_values\": 58,\n        \"samples\": [\n          808.0,\n          322.0,\n          346.0\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    }\n  ]\n}","type":"dataframe","variable_name":"df_merged"}
+```
+:::
+:::
+
+::: {.cell .markdown id="mXMvpR1zwCwP"}
+#### Encoding
+:::
+
+::: {.cell .markdown id="hKCg3i4c2yrs"}
+Para la parte del código de cada municipio, se extraera los 6 primeros
+valores que son el código y se harán str para posteriormente obetener 2
+filas, \"id_municipio\" y \"nombre_municipio\".
+:::
+
+::: {.cell .code execution_count="556" colab="{\"base_uri\":\"https://localhost:8080/\"}" collapsed="true" id="TUMc48tm2SoQ" outputId="a00ff175-ca29-4b35-ddfb-de6480ff8043"}
+``` python
+df_merged['id_municipio'] = df_merged['Município'].str[:6]
+df_merged['nombre_municipio'] = df_merged['Município'].str[7:]
+df_merged.drop(columns=['Município'], inplace=True)
+```
+
+::: {.output .stream .stderr}
+    <ipython-input-556-be04303112a5>:1: SettingWithCopyWarning: 
+    A value is trying to be set on a copy of a slice from a DataFrame.
+    Try using .loc[row_indexer,col_indexer] = value instead
+
+    See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+      df_merged['id_municipio'] = df_merged['Município'].str[:6]
+    <ipython-input-556-be04303112a5>:2: SettingWithCopyWarning: 
+    A value is trying to be set on a copy of a slice from a DataFrame.
+    Try using .loc[row_indexer,col_indexer] = value instead
+
+    See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+      df_merged['nombre_municipio'] = df_merged['Município'].str[7:]
+    <ipython-input-556-be04303112a5>:3: SettingWithCopyWarning: 
+    A value is trying to be set on a copy of a slice from a DataFrame
+
+    See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+      df_merged.drop(columns=['Município'], inplace=True)
+:::
+:::
+
+::: {.cell .code execution_count="557" id="9tUKmiPL3aFT"}
+``` python
+df_merged = df_merged[["id_municipio", "nombre_municipio", "Óbitos", "Taxa_mortalidade", "Internações"]]
+```
+:::
+
+::: {.cell .markdown id="LcAmujiGwFNv"}
+Ahora para pasarlo a un modelo de predicción se debe como que ajustar,
+por ello hacemos lo siguiente.
+:::
+
+::: {.cell .code execution_count="558" id="3oJXEPavf3pX"}
+``` python
+# Reemplazar comas decimales por puntos
+df_merged['Taxa_mortalidade'] = df_merged['Taxa_mortalidade'].str.replace(',', '.').astype(float)
+```
+:::
+
+::: {.cell .code execution_count="559" colab="{\"base_uri\":\"https://localhost:8080/\",\"height\":423}" id="hA1ywJ9M4Zet" outputId="29cd0a7a-58e5-443a-dc49-ae92a09863b7"}
+``` python
+df_merged #probar todo
+```
+
+::: {.output .execute_result execution_count="559"}
+``` json
+{"summary":"{\n  \"name\": \"df_merged\",\n  \"rows\": 61,\n  \"fields\": [\n    {\n      \"column\": \"id_municipio\",\n      \"properties\": {\n        \"dtype\": \"string\",\n        \"num_unique_values\": 61,\n        \"samples\": [\n          \"330010\",\n          \"330030\",\n          \"330480\"\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"nombre_municipio\",\n      \"properties\": {\n        \"dtype\": \"string\",\n        \"num_unique_values\": 61,\n        \"samples\": [\n          \"Angra dos Reis\",\n          \"Barra do Pira\\u00ed\",\n          \"S\\u00e3o Fid\\u00e9lis\"\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"\\u00d3bitos\",\n      \"properties\": {\n        \"dtype\": \"number\",\n        \"std\": 606.2204188039722,\n        \"min\": 1.0,\n        \"max\": 4473.0,\n        \"num_unique_values\": 41,\n        \"samples\": [\n          309.0,\n          4.0,\n          45.0\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"Taxa_mortalidade\",\n      \"properties\": {\n        \"dtype\": \"number\",\n        \"std\": 5.202955832880682,\n        \"min\": 0.47,\n        \"max\": 36.0,\n        \"num_unique_values\": 60,\n        \"samples\": [\n          5.94,\n          11.8,\n          8.86\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"Interna\\u00e7\\u00f5es\",\n      \"properties\": {\n        \"dtype\": \"number\",\n        \"std\": 9027.401019730885,\n        \"min\": 20.0,\n        \"max\": 66186.0,\n        \"num_unique_values\": 58,\n        \"samples\": [\n          808.0,\n          322.0,\n          346.0\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    }\n  ]\n}","type":"dataframe","variable_name":"df_merged"}
+```
+:::
+:::
+
+::: {.cell .markdown id="TFUPn7fRnCd5"}
+Por ahora scaling no nos ayuda mucho creo (9:29pm 23/4)
+:::
+
+::: {.cell .markdown id="XJC-YiktJdcE"}
+## Abordando preguntas y suposiciones
+:::
+
+::: {.cell .markdown id="Ph68K1SRaZuO"}
+### P1 ¿Cual es la municipalidad a la que **NO** debería ir si quiero vivir? (Feb - 2025)
+:::
+
+::: {.cell .markdown id="S9lwxmfbatrH"}
+Una respuesta sencilla es basada en la columna muertes x municipio(MM)
+:::
+
+::: {.cell .code execution_count="560" colab="{\"base_uri\":\"https://localhost:8080/\"}" id="7oEbar80Jt8T" outputId="b02f1b76-f91c-43fb-82a3-d6ee8690bc89"}
+``` python
+df_quiero_vivir = df_merged[df_merged['id_municipio'] != "Total"]
+top5 = df_quiero_vivir.sort_values(by="Óbitos", ascending=False).head(5)
+print(top5)
+```
+
+::: {.output .stream .stdout}
+       id_municipio       nombre_municipio  Óbitos  Taxa_mortalidade  Internações
+    44       330455         Rio de Janeiro  1706.0              6.36      26838.0
+    15       330170        Duque de Caxias   319.0              8.87       3597.0
+    32       330350            Nova Iguaçu   309.0             11.13       2776.0
+    11       330100  Campos dos Goytacazes   224.0              6.42       3490.0
+    48       330490            São Gonçalo   211.0              7.40       2851.0
+:::
+:::
+
+::: {.cell .markdown id="-XzfMb_8rk_D"}
+#### P1.1 Probablemente no debería ir a ninguno de esos, en especial Rio de Janeiro pero ¿Porqué? ¿Acaso es Rio de Janeiro es mortal? {#p11-probablemente-no-debería-ir-a-ninguno-de-esos-en-especial-rio-de-janeiro-pero-porqué-acaso-es-rio-de-janeiro-es-mortal}
+:::
+
+::: {.cell .code execution_count="561" colab="{\"base_uri\":\"https://localhost:8080/\",\"height\":81}" id="XKM8Gcwe0kn4" outputId="78390373-8e2d-4634-d97b-b6036ef6015a"}
+``` python
+df_merged[df_merged['nombre_municipio'] == "Rio de Janeiro"]
+```
+
+::: {.output .execute_result execution_count="561"}
+``` json
+{"summary":"{\n  \"name\": \"df_merged[df_merged['nombre_municipio'] == \\\"Rio de Janeiro\\\"]\",\n  \"rows\": 1,\n  \"fields\": [\n    {\n      \"column\": \"id_municipio\",\n      \"properties\": {\n        \"dtype\": \"string\",\n        \"num_unique_values\": 1,\n        \"samples\": [\n          \"330455\"\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"nombre_municipio\",\n      \"properties\": {\n        \"dtype\": \"string\",\n        \"num_unique_values\": 1,\n        \"samples\": [\n          \"Rio de Janeiro\"\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"\\u00d3bitos\",\n      \"properties\": {\n        \"dtype\": \"number\",\n        \"std\": null,\n        \"min\": 1706.0,\n        \"max\": 1706.0,\n        \"num_unique_values\": 1,\n        \"samples\": [\n          1706.0\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"Taxa_mortalidade\",\n      \"properties\": {\n        \"dtype\": \"number\",\n        \"std\": null,\n        \"min\": 6.36,\n        \"max\": 6.36,\n        \"num_unique_values\": 1,\n        \"samples\": [\n          6.36\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"Interna\\u00e7\\u00f5es\",\n      \"properties\": {\n        \"dtype\": \"number\",\n        \"std\": null,\n        \"min\": 26838.0,\n        \"max\": 26838.0,\n        \"num_unique_values\": 1,\n        \"samples\": [\n          26838.0\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    }\n  ]\n}","type":"dataframe"}
+```
+:::
+:::
+
+::: {.cell .code execution_count="562" colab="{\"base_uri\":\"https://localhost:8080/\",\"height\":1000}" collapsed="true" id="sbq6Xav36uh4" outputId="43e91b37-0311-4a29-e7a1-7866393327c2"}
+``` python
+heat_data = df_merged.set_index("nombre_municipio")[["Taxa_mortalidade"]]
+
+plt.figure(figsize=(10,12))
+sns.heatmap(heat_data.sort_values(by="Taxa_mortalidade", ascending=False), annot=True, cmap="Reds")
+plt.title("Indicadores de Salud por Municipio")
+plt.show()
+```
+
+::: {.output .display_data}
+![](vertopal_ded60ef7dd944c05b65f16c1e594b281/d72a512b2f9bc402efaaf780af0317e1b63c05ac.png)
+:::
+:::
+
+::: {.cell .markdown id="1atHyOb77SRS"}
+Tal parece que Rio de Janeiro no esta entre las mortalidades más altas
+por lo que **suponemos** que la cantidad de muertes se debe a su
+población. Agregaremos una columna más para ver como se relacionan, si
+es que resulta ser lo suficiente util lo agregamos al inicio.
+:::
+
+::: {.cell .code execution_count="563" id="HcChMjzf73Pv"}
+``` python
+# Municipio - Aglomerado
+MAM = pd.read_csv("/content/Municipio-AglomeradoMetropolitana.csv", encoding='latin1', sep=';', skiprows=3)
+MAM['Total'] = MAM['Total'].str.replace(',', '.').astype(float)
+# Solo me quedo con total
+MAM = MAM[["Município", "Total"]]
+# Arreglando Municipio por id
+MAM['id_municipio'] = MAM['Município'].str[:6]
+MAM.drop(columns=['Município'], inplace=True)
+```
+:::
+
+::: {.cell .code execution_count="564" colab="{\"base_uri\":\"https://localhost:8080/\"}" id="HNMp8Wi8_1Uj" outputId="d63860f0-ef9b-4fe2-b87c-3bd9c43d6f5b"}
+``` python
+#Agregar MAM a df_merge
+df_merged = df_merged.merge(MAM, on="id_municipio", how="inner")
+df_merged.rename(columns={'Total': 'Total_de_aglomeracion'}, inplace=True)
+print(df_merged.head(10))
+```
+
+::: {.output .stream .stdout}
+      id_municipio         nombre_municipio  Óbitos  Taxa_mortalidade  \
+    0       330010           Angra dos Reis    48.0              5.94   
+    1       330020                 Araruama    30.0              7.19   
+    2       330022                    Areal     2.0             10.00   
+    3       330023       Armação dos Búzios    15.0              7.65   
+    4       330025          Arraial do Cabo    10.0              4.00   
+    5       330030           Barra do Piraí    38.0             11.80   
+    6       330040              Barra Mansa    79.0              4.24   
+    7       330045             Belford Roxo    18.0             36.00   
+    8       330060  Bom Jesus do Itabapoana    45.0             11.22   
+    9       330070                Cabo Frio    48.0              4.69   
+
+       Internações  Total_de_aglomeracion  
+    0        808.0              935532.26  
+    1        417.0              621770.23  
+    2         20.0                7313.03  
+    3        196.0              170011.21  
+    4        250.0              135856.68  
+    5        322.0              185058.63  
+    6       1863.0             3384464.54  
+    7         50.0               29264.62  
+    8        401.0              989658.29  
+    9       1023.0             1710957.73  
+:::
+:::
+
+::: {.cell .markdown id="8Xi3HUuBDNph"}
+De por sí el total de habitantes lleva decimal por proyecciones o
+estimaciones estadisticas, sin embargo es obvio que no existen personas
+en decimal, entonces lo más natural en estos casos es redonderlo. Con
+estos datos será posible entender mejor las relaciones entre columnas.
+:::
+
+::: {.cell .code execution_count="565" id="8Hwta0faDegv"}
+``` python
+df_merged['Total_de_aglomeracion'] = df_merged['Total_de_aglomeracion'].round()
+```
+:::
+
+::: {.cell .code execution_count="566" colab="{\"base_uri\":\"https://localhost:8080/\"}" id="7dpiP5caDiJz" outputId="f6d462b7-c522-449a-cfdd-ac2200ab887d"}
+``` python
+print(df_merged)
+```
+
+::: {.output .stream .stdout}
+       id_municipio    nombre_municipio  Óbitos  Taxa_mortalidade  Internações  \
+    0        330010      Angra dos Reis    48.0              5.94        808.0   
+    1        330020            Araruama    30.0              7.19        417.0   
+    2        330022               Areal     2.0             10.00         20.0   
+    3        330023  Armação dos Búzios    15.0              7.65        196.0   
+    4        330025     Arraial do Cabo    10.0              4.00        250.0   
+    ..          ...                 ...     ...               ...          ...   
+    56       330600           Três Rios    25.0              5.48        456.0   
+    57       330610             Valença    42.0              5.65        744.0   
+    58       330620           Vassouras    32.0              9.58        334.0   
+    59       330630       Volta Redonda   154.0              6.61       2330.0   
+    60        Total                      4473.0              6.76      66186.0   
+
+        Total_de_aglomeracion  
+    0                935532.0  
+    1                621770.0  
+    2                  7313.0  
+    3                170011.0  
+    4                135857.0  
+    ..                    ...  
+    56               517591.0  
+    57              1114470.0  
+    58              1844279.0  
+    59              5976528.0  
+    60            121651166.0  
+
+    [61 rows x 6 columns]
+:::
+:::
+
+::: {.cell .markdown id="OwRl0fcQDvLB"}
+#### P1.2 ¿Como se relaciona la cantidad de aglomeración con más cantidad de muertos en febrero del 2025? ¿Será por eso que tiene Rio de Janeiro tiene más cantidad de muertos? {#p12-como-se-relaciona-la-cantidad-de-aglomeración-con-más-cantidad-de-muertos-en-febrero-del-2025-será-por-eso-que-tiene-rio-de-janeiro-tiene-más-cantidad-de-muertos}
+:::
+
+::: {.cell .code execution_count="567" colab="{\"base_uri\":\"https://localhost:8080/\",\"height\":719}" id="VCgKIu9eEIO2" outputId="5bdf9b33-5e97-4abf-fe5f-dca137c06630"}
+``` python
+df_merged["tasa_mortalidad"] = df_merged["Óbitos"] / df_merged["Total_de_aglomeracion"]
+
+plt.figure(figsize=(12, 8))
+scatter = plt.scatter(
+    df_merged["Total_de_aglomeracion"],
+    df_merged["Óbitos"],
+    s=df_merged["tasa_mortalidad"] * 50000,
+    alpha=0.6,
+    c="skyblue",
+    edgecolors="gray"
+)
+
+for _, row in df_merged.nlargest(10, "Óbitos").iterrows():
+    plt.text(row["Total_de_aglomeracion"], row["Óbitos"], row["nombre_municipio"], fontsize=9)
+
+plt.xlabel("Total_de_aglomeracion")
+plt.ylabel("Muertes (Óbitos)")
+plt.title("Relación entre Alglomeración total Total y Muertes en Febrero 2025")
+plt.grid(True)
+plt.show()
+```
+
+::: {.output .display_data}
+![](vertopal_ded60ef7dd944c05b65f16c1e594b281/4e5f963c1638f5ec311ec7d291f35b2330d8ae90.png)
+:::
+:::
+
+::: {.cell .markdown id="nrlQo31MF_mZ"}
+Confirmamos algo probablemente obvio, Rio de Janeiro tiene más muertes
+porque tiene más aglomeración urbana cerca lo que nos lleva a deducir
+que la cantidad muertos en Rio de Janeiro es más por la cantidad de
+personas que por la calidad de atención por lo que para confirmar esto
+nos generamos la siguiente pregunta.
+:::
+
+::: {.cell .markdown id="y8pun4r0wFR9"}
+### P2 Imaginemos que sufrí un accidente, basado en el accidente ¿Cual sería el municipio en el que me convendría ir para salvarme?
+
+Siendo esta una oportunidad de validar la eficacia de los hospitales en
+Rio de Janeiro evaluaremos el ingreso de una persona al hospital del
+municipio desde que se hospitalizo hasta que se dió de alta, basado en
+el tipo de accidente.
+:::
+
+::: {.cell .code execution_count="568" id="VpBA6YzB3ajN"}
+``` python
+# Municipio - Atención - Accidente
+MAA = pd.read_csv("/content/Municipio-Atencion-Accidente.csv", encoding='latin1', sep=';', skiprows=3)
+
+MAA['id_municipio'] = MAA['Município'].str[:6]
+MAA.drop(columns=['Município'], inplace=True)
+
+# Reemplazar todas las columnas con nuevos nombres con MAA_Electivo, etc y eliminamos del 65 al 72
+MAA.drop(index=range(65, 73), inplace=True)
+MAA.columns = ['MAA_' + col if col != 'id_municipio' else col for col in MAA.columns]
+
+# Todas las columnas que tienen coma pasarlo a punto decimal
+for col in MAA.columns:
+    if col != 'id_municipio':
+        MAA[col] = (
+            MAA[col].astype(str)
+            .str.strip()  # Elimina espacios
+            .replace({'...': '-1', '…': '-1', '-': '-1'}, regex=False)
+            .str.replace(',', '.', regex=False)
+            .astype(float)
+        )
+```
+:::
+
+::: {.cell .code execution_count="569" colab="{\"base_uri\":\"https://localhost:8080/\",\"height\":423}" id="_Fk2-jFnCFZV" outputId="4a93da52-2da5-41a9-f0aa-fc803c6804c2"}
+``` python
+MAA
+```
+
+::: {.output .execute_result execution_count="569"}
+``` json
+{"summary":"{\n  \"name\": \"MAA\",\n  \"rows\": 65,\n  \"fields\": [\n    {\n      \"column\": \"MAA_Eletivo\",\n      \"properties\": {\n        \"dtype\": \"number\",\n        \"std\": 3.063924707851781,\n        \"min\": -1.0,\n        \"max\": 17.4,\n        \"num_unique_values\": 33,\n        \"samples\": [\n          4.1,\n          0.7,\n          4.8\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"MAA_Urg\\u00eancia\",\n      \"properties\": {\n        \"dtype\": \"number\",\n        \"std\": 1.942189733661071,\n        \"min\": -1.0,\n        \"max\": 10.2,\n        \"num_unique_values\": 39,\n        \"samples\": [\n          7.9,\n          5.9,\n          6.5\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"MAA_Outros ac trab\",\n      \"properties\": {\n        \"dtype\": \"number\",\n        \"std\": 1.4270936037436912,\n        \"min\": -1.0,\n        \"max\": 7.2,\n        \"num_unique_values\": 2,\n        \"samples\": [\n          7.2,\n          -1.0\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"MAA_Outras caus ext\",\n      \"properties\": {\n        \"dtype\": \"number\",\n        \"std\": 0.8458041235325207,\n        \"min\": -1.0,\n        \"max\": 3.0,\n        \"num_unique_values\": 2,\n        \"samples\": [\n          -1.0,\n          3.0\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"MAA_Total\",\n      \"properties\": {\n        \"dtype\": \"number\",\n        \"std\": 1.6741530579784099,\n        \"min\": 2.3,\n        \"max\": 10.2,\n        \"num_unique_values\": 38,\n        \"samples\": [\n          4.7,\n          4.9\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"id_municipio\",\n      \"properties\": {\n        \"dtype\": \"string\",\n        \"num_unique_values\": 65,\n        \"samples\": [\n          \"330530\",\n          \"330610\"\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    }\n  ]\n}","type":"dataframe","variable_name":"MAA"}
+```
+:::
+:::
+
+::: {.cell .code execution_count="570" id="nFOypOnq5phM"}
+``` python
+# Unir df_merged con MAA por el código
+df_merged = df_merged.merge(MAA, on="id_municipio", how="inner")
+df_merged.drop(columns=['id_municipio'], inplace=True)
+```
+:::
+
+::: {.cell .code execution_count="571" colab="{\"base_uri\":\"https://localhost:8080/\",\"height\":478}" id="OteRQWkz6Tw7" outputId="e2c8d217-2f11-4f9a-c5e0-4028d5ff0723"}
+``` python
+df_merged # Veamos si podemos eliminar MAA_Total
+```
+
+::: {.output .execute_result execution_count="571"}
+``` json
+{"summary":"{\n  \"name\": \"df_merged\",\n  \"rows\": 61,\n  \"fields\": [\n    {\n      \"column\": \"nombre_municipio\",\n      \"properties\": {\n        \"dtype\": \"string\",\n        \"num_unique_values\": 61,\n        \"samples\": [\n          \"Angra dos Reis\",\n          \"Barra do Pira\\u00ed\",\n          \"S\\u00e3o Fid\\u00e9lis\"\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"\\u00d3bitos\",\n      \"properties\": {\n        \"dtype\": \"number\",\n        \"std\": 606.2204188039722,\n        \"min\": 1.0,\n        \"max\": 4473.0,\n        \"num_unique_values\": 41,\n        \"samples\": [\n          309.0,\n          4.0,\n          45.0\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"Taxa_mortalidade\",\n      \"properties\": {\n        \"dtype\": \"number\",\n        \"std\": 5.202955832880682,\n        \"min\": 0.47,\n        \"max\": 36.0,\n        \"num_unique_values\": 60,\n        \"samples\": [\n          5.94,\n          11.8,\n          8.86\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"Interna\\u00e7\\u00f5es\",\n      \"properties\": {\n        \"dtype\": \"number\",\n        \"std\": 9027.401019730885,\n        \"min\": 20.0,\n        \"max\": 66186.0,\n        \"num_unique_values\": 58,\n        \"samples\": [\n          808.0,\n          322.0,\n          346.0\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"Total_de_aglomeracion\",\n      \"properties\": {\n        \"dtype\": \"number\",\n        \"std\": 16919536.270967286,\n        \"min\": 7313.0,\n        \"max\": 121651166.0,\n        \"num_unique_values\": 61,\n        \"samples\": [\n          935532.0,\n          185059.0,\n          385882.0\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"tasa_mortalidad\",\n      \"properties\": {\n        \"dtype\": \"number\",\n        \"std\": 0.00011604609981526451,\n        \"min\": 3.2109222732045325e-06,\n        \"max\": 0.0006150691952844695,\n        \"num_unique_values\": 61,\n        \"samples\": [\n          5.130770513461859e-05,\n          0.00020533991862054803,\n          3.368905520340415e-05\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"MAA_Eletivo\",\n      \"properties\": {\n        \"dtype\": \"number\",\n        \"std\": 3.141299894521758,\n        \"min\": -1.0,\n        \"max\": 17.4,\n        \"num_unique_values\": 32,\n        \"samples\": [\n          1.1,\n          0.7,\n          0.6\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"MAA_Urg\\u00eancia\",\n      \"properties\": {\n        \"dtype\": \"number\",\n        \"std\": 1.9388577562335778,\n        \"min\": -1.0,\n        \"max\": 10.2,\n        \"num_unique_values\": 37,\n        \"samples\": [\n          9.1,\n          5.0,\n          6.5\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"MAA_Outros ac trab\",\n      \"properties\": {\n        \"dtype\": \"number\",\n        \"std\": 1.4723610272400973,\n        \"min\": -1.0,\n        \"max\": 7.2,\n        \"num_unique_values\": 2,\n        \"samples\": [\n          7.2,\n          -1.0\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"MAA_Outras caus ext\",\n      \"properties\": {\n        \"dtype\": \"number\",\n        \"std\": 0.8721557989860058,\n        \"min\": -1.0,\n        \"max\": 3.0,\n        \"num_unique_values\": 2,\n        \"samples\": [\n          -1.0,\n          3.0\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"MAA_Total\",\n      \"properties\": {\n        \"dtype\": \"number\",\n        \"std\": 1.6605104883641093,\n        \"min\": 2.5,\n        \"max\": 10.2,\n        \"num_unique_values\": 35,\n        \"samples\": [\n          5.8,\n          8.0\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    }\n  ]\n}","type":"dataframe","variable_name":"df_merged"}
+```
+:::
+:::
+
+::: {.cell .markdown id="2AW_BdyvCr2Q"}
+Una vez obtenida la informaciones veremos la cantidad de personas que
+ingresaron por un accidente y fueron dados de alta rapido. Es de interes
+juntarlo con la cantidad de muertos, sin embargo esto podría llevar al
+error debido a que la persona puede haber muerto por distintas causas.
+Veremos cuantas personas ingresaron a hospitalización y en cuando tiempo
+se dieron de alta.
+:::
+
+::: {.cell .code execution_count="572" id="olBuOu74EoJI"}
+``` python
+# Municipio-Hospitalizados-Accidente
+MAHA = pd.read_csv("/content/Municipio-Hospitalizados-Accidente.csv", encoding='latin1', sep=';', skiprows=3)
+
+# Hacemos la limpieza cotidiana
+MAHA['id_municipio'] = MAHA['Município'].str[:6]
+MAHA['Município_name'] = MAHA['Município'].str[7:]
+MAHA.drop(columns=['Município'], inplace=True)
+
+# Reemplazamos valores
+MAHA.columns = ['MAHA_' + col if col not in ['id_municipio', 'Município_name'] else col for col in MAHA.columns]
+
+#Eliminar filas
+MAHA.drop(index=range(65, 73), inplace=True)
+
+# Limpieza de valores extraños
+for col in MAHA.columns:
+    if col not in ['id_municipio', 'Município_name']:
+        MAHA[col] = (
+            MAHA[col].astype(str)
+            .str.strip()
+            .replace({'...': '-1', '…': '-1', '-': '-1'}, regex=False)
+            .str.replace(',', '.', regex=False)
+            .astype(float)
+        )
+```
+:::
+
+::: {.cell .code execution_count="573" id="bXe975zFFE_A"}
+``` python
+#Unimos a MAA
+MAHA_MAA = MAHA.merge(MAA, on="id_municipio", how="inner")
+```
+:::
+
+::: {.cell .markdown id="1qeS3gNuH5zO"}
+#### P2.1 ¿Cuantos entraron por urgencia, fueron hospitalizados y salieron en un promedio de 5 días o menos? {#p21-cuantos-entraron-por-urgencia-fueron-hospitalizados-y-salieron-en-un-promedio-de-5-días-o-menos}
+:::
+
+::: {.cell .code execution_count="575" id="v3AYw97hHpLG"}
+``` python
+#Para el grafico obviemos el total que es la fila 64
+MAHA_graf = MAHA.iloc[:-1]
+```
+:::
+
+::: {.cell .code execution_count="576" id="U1zDukxBNQmN"}
+``` python
+# Unamos MAA con MAHA
+MAHA_MAA = MAHA.merge(MAA, on="id_municipio", how="inner")
+```
+:::
+
+::: {.cell .code execution_count="577" id="mmR1DeU2NsgH"}
+``` python
+# Quitemos la fila con el valor más grade de urgencias en MAHA_Urgencias
+MAHA_MAA = MAHA_MAA[MAHA_MAA['MAHA_Urgência'] != MAHA_MAA['MAHA_Urgência'].max()]
+```
+:::
+
+::: {.cell .code execution_count="578" colab="{\"base_uri\":\"https://localhost:8080/\",\"height\":761}" id="JX8kHEzMNMon" outputId="380f0a79-11aa-43ba-b245-4053c18f8c1d"}
+``` python
+# Variables a graficar
+x = MAHA_MAA['MAHA_Urgência']  # Cantidad de personas ingresadas por urgencia
+y = MAHA_MAA['MAA_Urgência']  # Promedio de días hospitalizados
+labels = MAHA_MAA['Município_name']  # Etiquetamos el municipio
+
+plt.figure(figsize=(12, 8))
+plt.scatter(x, y, color='skyblue', edgecolors='black')
+
+# Añadir etiquetas de municipios
+for i, label in enumerate(labels):
+    plt.text(x.iloc[i], y.iloc[i], str(label), fontsize=8, alpha=0.7)
+
+plt.xlabel('Cantidad de urgencias (MAHA_Urgência)')
+plt.ylabel('Promedio días hospitalizado (MAA_Urgência)')
+plt.title('Relación entre cantidad de urgencias y días hospitalizados por municipio')
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+```
+
+::: {.output .display_data}
+![](vertopal_ded60ef7dd944c05b65f16c1e594b281/35235a38cf0cf32d344762c18a06b7d909f8f620.png)
+:::
+:::
+
+::: {.cell .markdown id="muyItQdfV3b4"}
+Rio de Janeiro parece estar por encima de la media en cuanto a atención
+hospitalaria, los pacientes hospitalizados en urgencia entraron pero en
+promedio demoraron más en darse de alta que en otros hospitales
+municipales.
+:::
+
+::: {.cell .code execution_count="579" colab="{\"base_uri\":\"https://localhost:8080/\",\"height\":760}" id="7pomI626Q31N" outputId="ac2c0b4d-db36-472d-d54e-54245438ac77"}
+``` python
+# Filtrar los datos excluyendo "Rio de Janeiro"
+df_filtrado = MAHA_MAA[MAHA_MAA['Município_name'] != 'Rio de Janeiro']
+
+# Variables a graficar
+x = df_filtrado['MAHA_Urgência']
+y = df_filtrado['MAA_Urgência']
+labels = df_filtrado['Município_name']
+
+plt.figure(figsize=(12, 8))
+plt.scatter(x, y, color='skyblue', edgecolors='black')
+
+# Añadir etiquetas de municipios
+for i, label in enumerate(labels):
+    plt.text(x.iloc[i], y.iloc[i], str(label), fontsize=8, alpha=0.7)
+
+plt.xlabel('Cantidad de urgencias (MAHA_Urgência)')
+plt.ylabel('Promedio días hospitalizado (MAA_Urgência)')
+plt.title('Relación entre cantidad de urgencias y días hospitalizados (sin Rio de Janeiro)')
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+```
+
+::: {.output .display_data}
+![](vertopal_ded60ef7dd944c05b65f16c1e594b281/15d3e9eac7aebbb00c3b6fccb648327e14742c4e.png)
+:::
+:::
+
+::: {.cell .markdown id="FuKfBVJ9WOuw"}
+Para los demás municipios, la cantidad de urgencias es relativamente
+corto por lo que se puede deducir que al haber pocos ingresantes de
+urgencia no se sobresaturan por lo que el rendimiento de atención logra
+dar de alta en pocos días. Sin embargo casos como Sao Francisco de
+Itabapoana suelen tener peores casos, donde la cantidad de urgencias son
+pocas pero demoran mucho.
+:::
+
+::: {.cell .code execution_count="580" colab="{\"base_uri\":\"https://localhost:8080/\",\"height\":1000}" id="7MqiEJa_RX0r" outputId="be2880db-cfe4-4569-c3ec-f88545b8b749"}
+``` python
+df_sorted = MAHA_MAA.sort_values(by='MAA_Urgência', ascending=False)
+
+plt.figure(figsize=(10, 14))
+sns.heatmap(
+    data=df_sorted[['MAA_Urgência']].set_index(df_sorted['Município_name']),
+    annot=True, fmt=".1f", cmap='coolwarm', linewidths=.5, cbar_kws={'label': 'Prom. días hospitalizado'}
+)
+
+plt.title('Promedio de días hospitalizados por urgencia (MAA_Urgência)')
+plt.xlabel('')
+plt.ylabel('Municipio')
+plt.tight_layout()
+plt.show()
+```
+
+::: {.output .display_data}
+![](vertopal_ded60ef7dd944c05b65f16c1e594b281/42b61c29b2bee65914e009b735b95149019f25df.png)
+:::
+:::
+
+::: {.cell .markdown id="a7sgfLdrR66O"}
+Nilópolis no tuvo ninguna hospitalización de emergencia para esa época.
+:::
+
+::: {.cell .markdown id="Zxvy1nePTHj3"}
+Entonces para finalmente contestar a la pregunta principal (P2) habría
+que evaluar el flujo de pacientes para cada tipo de urgencia y
+asignarles un ranking de municipio para cada tipo de accidente. Para
+esto usaremos una formula de tal:
+
+$$
+\text{Índice de urgencia} = \frac{\text{Número de urgencias}}{\text{Promedio de días hospitalizados}}
+$$
+
+que nos dará el índice con el que determinaremos el flujo y armaremos el
+ranking.
+:::
+
+::: {.cell .code execution_count="585" colab="{\"base_uri\":\"https://localhost:8080/\",\"height\":206}" id="VAIc1lV2Z4wb" outputId="c6d40d1d-21f5-444c-b5d7-1e48a29c017f"}
+``` python
+df = MAHA_MAA.copy() #porseacasito
+
+df['Índice_Eletivo'] = df['MAHA_Eletivo'] / df['MAA_Eletivo']
+df['Índice_Urgência'] = df['MAHA_Urgência'] / df['MAA_Urgência']
+df['Índice_Acidente_Trabalho'] = df['MAHA_Outros ac trab'] / df['MAA_Outros ac trab']
+df['Índice_Causas_Externas'] = df['MAHA_Outras caus ext'] / df['MAA_Outras caus ext']
+
+# Columnas relevantes
+df_indices = df[['Município_name',
+                 'Índice_Eletivo',
+                 'Índice_Urgência',
+                 'Índice_Acidente_Trabalho',
+                 'Índice_Causas_Externas']]
+
+df_indices = df_indices.sort_values(by='Índice_Urgência', ascending=False).reset_index(drop=True)
+df_indices.head()
+```
+
+::: {.output .execute_result execution_count="585"}
+``` json
+{"summary":"{\n  \"name\": \"df_indices\",\n  \"rows\": 64,\n  \"fields\": [\n    {\n      \"column\": \"Munic\\u00edpio_name\",\n      \"properties\": {\n        \"dtype\": \"string\",\n        \"num_unique_values\": 64,\n        \"samples\": [\n          \"Mendes\",\n          \"Rio das Flores\",\n          \"Rio de Janeiro\"\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"\\u00cdndice_Eletivo\",\n      \"properties\": {\n        \"dtype\": \"number\",\n        \"std\": 264.59016294070085,\n        \"min\": -1.0,\n        \"max\": 2033.6065573770493,\n        \"num_unique_values\": 46,\n        \"samples\": [\n          75.0,\n          74.61538461538461,\n          12.5\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"\\u00cdndice_Urg\\u00eancia\",\n      \"properties\": {\n        \"dtype\": \"number\",\n        \"std\": 268.29976506289967,\n        \"min\": 1.0,\n        \"max\": 2004.5833333333333,\n        \"num_unique_values\": 64,\n        \"samples\": [\n          8.372093023255815,\n          4.827586206896552,\n          2004.5833333333333\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"\\u00cdndice_Acidente_Trabalho\",\n      \"properties\": {\n        \"dtype\": \"number\",\n        \"std\": 0.6041666666666664,\n        \"min\": 1.0,\n        \"max\": 5.833333333333333,\n        \"num_unique_values\": 2,\n        \"samples\": [\n          5.833333333333333,\n          1.0\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    },\n    {\n      \"column\": \"\\u00cdndice_Causas_Externas\",\n      \"properties\": {\n        \"dtype\": \"number\",\n        \"std\": 0.5416666666666673,\n        \"min\": 1.0,\n        \"max\": 5.333333333333333,\n        \"num_unique_values\": 2,\n        \"samples\": [\n          5.333333333333333,\n          1.0\n        ],\n        \"semantic_type\": \"\",\n        \"description\": \"\"\n      }\n    }\n  ]\n}","type":"dataframe","variable_name":"df_indices"}
+```
+:::
+:::
+
+::: {.cell .code execution_count="586" colab="{\"base_uri\":\"https://localhost:8080/\",\"height\":805}" id="L8nZyqtlbCZM" outputId="f61a7cc9-46ec-4a81-f098-6af4e6d03bf3"}
+``` python
+# Subplots en un mosaico 2x2
+fig, axs = plt.subplots(2, 2, figsize=(14, 10))
+fig.suptitle('Top 5 municipios por índice de eficiencia en hospitalizaciones', fontsize=16)
+
+# Lista de índices y sus títulos
+indices_info = [
+    ('Índice_Eletivo', 'Atención Electiva'),
+    ('Índice_Urgência', 'Atención por Urgencia'),
+    ('Índice_Acidente_Trabalho', 'Accidente de Trabajo'),
+    ('Índice_Causas_Externas', 'Otras Causas Externas')
+]
+
+#Graficos
+for ax, (indice, titulo) in zip(axs.flatten(), indices_info):
+    top5 = df_indices.sort_values(by=indice, ascending=False).head(5)
+    ax.barh(top5['Município_name'], top5[indice], color='skyblue', edgecolor='black')
+    ax.set_title(titulo)
+    ax.invert_yaxis()
+    ax.set_xlabel('Índice')
+    ax.grid(True, axis='x', linestyle='--', alpha=0.5)
+
+plt.tight_layout(rect=[0, 0, 1, 0.96])
+plt.show()
+```
+
+::: {.output .display_data}
+![](vertopal_ded60ef7dd944c05b65f16c1e594b281/bea25b181eba588a5c6966eab2ce4a6b3b76ab76.png)
+:::
+:::
+
+::: {.cell .markdown id="Mf0HVZ6Lbc7S"}
+El indice nos da un valor de flujo de atención médica, responde a la
+pregunta de ¿Cuántas personas en promedio fueron atendidas por día?.
+Basado en estos resultados podemos responder que para nuestros inicios
+del 2025 a una persona del aglomerado le conviene estar cerca de Rio de
+Janeiro para una atención electiva o una de Urgencia. Sin embargo, para
+un accidente de trabajo nuestra mejor opción es en el municipio de
+Campos dos Goytacazes. Finalmente, en cuando a causas externas, la mejor
+opción es Volta Redonda.
+:::
